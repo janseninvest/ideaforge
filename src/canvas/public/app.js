@@ -109,17 +109,26 @@ function createCard(item) {
   const card = document.createElement('div');
   card.className = 'card';
   card.dataset.el = item.id;
+  card.draggable = true;
 
   if (item.type === 'image') {
     if (!item.src) return null; // Skip broken images
     const timeStr = item.timestamp ? new Date(item.timestamp).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }) : '';
     card.innerHTML = `
+      <button class="card-delete" title="Remove">✕</button>
       <img src="${esc(item.src)}" alt="${esc(item.label || '')}" loading="lazy" onerror="this.parentElement.remove()">
       <div class="card-body">
         ${item.label ? `<div class="card-label">${esc(item.label)}</div>` : ''}
         ${timeStr ? `<div class="card-time">${timeStr}</div>` : ''}
       </div>
     `;
+    card.querySelector('.card-delete').addEventListener('click', (e) => {
+      e.stopPropagation();
+      card.style.opacity = '0';
+      card.style.transform = 'scale(0.8)';
+      card.style.transition = 'all 0.3s';
+      setTimeout(() => card.remove(), 300);
+    });
   } else if (item.type === 'palette') {
     card.classList.add('palette-card');
     const swatches = (item.colors || []).map(c =>
@@ -395,6 +404,49 @@ document.addEventListener('keydown', e => {
 // Click outside modal to close
 document.querySelectorAll('.modal').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) m.classList.add('hidden'); });
+});
+
+// ─── Drag & Drop Reorder ───
+let draggedCard = null;
+
+document.addEventListener('dragstart', e => {
+  const card = e.target.closest('.card');
+  if (!card) return;
+  draggedCard = card;
+  card.style.opacity = '0.4';
+  e.dataTransfer.effectAllowed = 'move';
+});
+
+document.addEventListener('dragover', e => {
+  const card = e.target.closest('.card');
+  if (!card || card === draggedCard) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  card.style.borderColor = 'var(--accent)';
+});
+
+document.addEventListener('dragleave', e => {
+  const card = e.target.closest('.card');
+  if (card) card.style.borderColor = '';
+});
+
+document.addEventListener('drop', e => {
+  const target = e.target.closest('.card');
+  if (!target || !draggedCard || target === draggedCard) return;
+  e.preventDefault();
+  const grid = target.closest('.section-grid');
+  if (!grid) return;
+  const cards = [...grid.children];
+  const fromIdx = cards.indexOf(draggedCard);
+  const toIdx = cards.indexOf(target);
+  if (fromIdx < toIdx) target.after(draggedCard);
+  else target.before(draggedCard);
+  target.style.borderColor = '';
+});
+
+document.addEventListener('dragend', () => {
+  if (draggedCard) { draggedCard.style.opacity = ''; draggedCard = null; }
+  document.querySelectorAll('.card').forEach(c => c.style.borderColor = '');
 });
 
 // ─── Init ───

@@ -195,22 +195,25 @@ main.has-style-bar { padding-top: calc(var(--header-h) + 44px); }
 }
 .section-count { font-size: 0.75rem; color: var(--text-muted); }
 
-/* ─── Grid (masonry-like) ─── */
+/* ─── Grid ─── */
 .section-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: var(--gap);
   width: 100%;
 }
-@media (min-width: 900px) {
+@media (min-width: 768px) {
+  .section-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 1000px) {
   .section-grid { grid-template-columns: repeat(3, 1fr); }
 }
-@media (min-width: 1200px) {
+@media (min-width: 1400px) {
   .section-grid { grid-template-columns: repeat(4, 1fr); }
 }
-@media (min-width: 1600px) {
-  .section-grid { grid-template-columns: repeat(5, 1fr); }
-}
+/* Force all cards same height within grid row */
+.section-grid .card { display: flex; flex-direction: column; }
+.section-grid .card img { flex: 1; min-height: 0; }
 
 /* ─── Cards ─── */
 .card {
@@ -253,6 +256,24 @@ main.has-style-bar { padding-top: calc(var(--header-h) + 44px); }
   padding: 3px 10px; border-radius: 12px; font-size: 0.8rem;
   background: var(--accent-soft); color: var(--accent); border: 1px solid transparent;
 }
+
+/* Card delete button */
+.card { position: relative; }
+.card-delete {
+  position: absolute; top: 8px; right: 8px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+  border: none; color: white; font-size: 0.8rem;
+  cursor: pointer; display: none; align-items: center; justify-content: center;
+  transition: background 0.15s;
+  z-index: 2;
+}
+.card-delete:hover { background: var(--danger); }
+.card:hover .card-delete { display: flex; }
+
+/* Drag states */
+.card[draggable="true"] { cursor: grab; }
+.card[draggable="true"]:active { cursor: grabbing; }
 
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(16px); }
