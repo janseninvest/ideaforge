@@ -43,6 +43,10 @@ class PresenterAgent {
     if (this._server) this._server.setTextHandler(fn);
   }
 
+  setUrlHandler(fn) {
+    if (this._server) this._server.setUrlHandler(fn);
+  }
+
   async stopServer() {
     if (this._server) await this._server.stop();
   }

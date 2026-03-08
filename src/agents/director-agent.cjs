@@ -9,6 +9,7 @@ const { ListenerAgent } = require('./listener-agent.cjs');
 const { VisualizerAgent } = require('./visualizer-agent.cjs');
 const { CuratorAgent } = require('./curator-agent.cjs');
 const { PresenterAgent } = require('./presenter-agent.cjs');
+const { StyleExtractor } = require('../tools/style-extractor.cjs');
 
 class DirectorAgent {
   constructor(config = {}) {
@@ -16,10 +17,12 @@ class DirectorAgent {
     this.listener = new ListenerAgent(config.listener || {});
     this.visualizer = new VisualizerAgent(config.visualizer || {});
     this.curator = new CuratorAgent(config.curator || {});
-    this.presenter = null; // created per-session (needs sessionDir)
+    this.styleExtractor = new StyleExtractor();
+    this.presenter = null;
 
     this.session = null;
     this.startTime = null;
+    this.activeStyle = null; // URL-extracted style theme
     this.stats = { conceptsExtracted: 0, imagesGenerated: 0, boardUpdates: 0 };
   }
 
@@ -48,7 +51,7 @@ class DirectorAgent {
     const port = this.config.server?.port || 3333;
     const srv = await this.presenter.startServer(port);
 
-    // Wire browser audio/text handlers to pipeline
+    // Wire browser handlers to pipeline
     this.presenter.setAudioHandler(async (audioFile) => {
       logger.info('director', `Processing browser audio: ${audioFile}`);
       return this.processAudioChunk(audioFile);
@@ -56,6 +59,10 @@ class DirectorAgent {
     this.presenter.setTextHandler(async (text) => {
       logger.info('director', `Processing browser text: ${text.substring(0, 60)}...`);
       return this.processTextInput(text);
+    });
+    this.presenter.setUrlHandler(async (url) => {
+      logger.info('director', `Extracting style from URL: ${url}`);
+      return this.applyUrlStyle(url);
     });
 
     const nets = require('os').networkInterfaces();
@@ -69,6 +76,41 @@ class DirectorAgent {
     }
 
     return { sessionId, serverUrl };
+  }
+
+  /**
+   * Extract style from a URL and apply it as the active theme.
+   */
+  async applyUrlStyle(url) {
+    this._ensureSession();
+    const style = await this.styleExtractor.extractFromURL(url);
+    this.activeStyle = style;
+
+    // Apply style to board theme
+    if (this.presenter) {
+      this.presenter.updateBoard({
+        theme: {
+          colors: style.colors,
+          backgroundColor: style.backgroundColor,
+          textColor: style.textColor,
+          accentColor: style.accentColor,
+          fonts: style.fonts,
+          layoutStyle: style.layoutStyle,
+          sourceUrl: style.sourceUrl,
+        },
+      });
+      this.presenter.updateMood(
+        style.mood || style.description,
+        style.colors.length >= 2 ? [style.colors[0], style.colors[1]] : ['#6b8afd', '#1e293b']
+      );
+      this.presenter.addTimelineEvent({
+        label: `Style applied from ${new URL(url).hostname}`,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('director', `Style applied: ${style.mood} (${style.layoutStyle}) from ${url}`);
+    return { status: 'styled', style };
   }
 
   async processAudioChunk(audioFilePath) {
@@ -119,6 +161,13 @@ class DirectorAgent {
       }
       return c;
     });
+
+    // Apply active URL style to image prompts
+    if (this.activeStyle?.imageStylePrompt) {
+      for (const c of conceptItems) {
+        c.visualPrompt = `${c.visualPrompt || c.description}. Style: ${this.activeStyle.imageStylePrompt}`;
+      }
+    }
 
     const [visuals, palette] = await Promise.all([
       this.visualizer.generateImages(conceptItems, this.session.dir),

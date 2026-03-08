@@ -52,9 +52,10 @@ function createServer(opts = {}) {
     }
   }
 
-  // Audio processing callback — set by DirectorAgent
+  // Processing callbacks — set by DirectorAgent
   let onAudioReceived = opts.onAudioReceived || null;
   let onTextReceived = opts.onTextReceived || null;
+  let onUrlReceived = opts.onUrlReceived || null;
 
   const server = http.createServer((req, res) => {
     cors(res);
@@ -136,6 +137,30 @@ function createServer(opts = {}) {
       return;
     }
 
+    // URL style extraction
+    if (pathname === '/api/add-url' && req.method === 'POST') {
+      const chunks = [];
+      req.on('data', c => chunks.push(c));
+      req.on('end', async () => {
+        try {
+          const body = JSON.parse(Buffer.concat(chunks).toString());
+          const url = body.url || '';
+          console.log(`[server] URL received: ${url}`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          if (onUrlReceived) {
+            const result = await onUrlReceived(url);
+            res.end(JSON.stringify({ status: 'ok', ...result }));
+          } else {
+            res.end(JSON.stringify({ status: 'received', url }));
+          }
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'error', error: e.message }));
+        }
+      });
+      return;
+    }
+
     // Status endpoint
     if (pathname === '/api/status') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -157,6 +182,7 @@ function createServer(opts = {}) {
 
   function setAudioHandler(fn) { onAudioReceived = fn; }
   function setTextHandler(fn) { onTextReceived = fn; }
+  function setUrlHandler(fn) { onUrlReceived = fn; }
 
   function start() {
     return new Promise((resolve) => {
@@ -187,7 +213,7 @@ function createServer(opts = {}) {
     });
   }
 
-  return { server, start, stop, broadcast, port, setAudioHandler, setTextHandler };
+  return { server, start, stop, broadcast, port, setAudioHandler, setTextHandler, setUrlHandler };
 }
 
 // CLI mode

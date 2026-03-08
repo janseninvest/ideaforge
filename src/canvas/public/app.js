@@ -1,207 +1,256 @@
 'use strict';
 
 // ─── State ───
-let board = { title: '', sections: [], timeline: [], mood: {} };
-let startedAt = null;
-let isRecording = false;
-let mediaRecorder = null;
-let audioChunks = [];
-let isProcessing = false;
+const state = {
+  board: { title: '', sections: [], timeline: [], mood: {}, theme: null },
+  startedAt: null,
+  isRecording: false,
+  isContinuous: false,
+  mediaRecorder: null,
+  audioChunks: [],
+  processing: 0,
+};
 
 // ─── DOM ───
 const $ = id => document.getElementById(id);
-const boardEl = $('board');
-const titleEl = $('title');
-const elapsedEl = $('elapsed');
-const countEl = $('element-count');
-const statusDot = $('status-dot');
-const statusText = $('status-text');
+const board = $('board');
 const emptyState = $('empty-state');
-const moodOverlay = $('mood-overlay');
-const timelineEl = $('timeline');
-const timelineItems = $('timeline-items');
-const recordingIndicator = $('recording-indicator');
-const processingIndicator = $('processing-indicator');
-const processingText = $('processing-text');
 
-// ─── SSE Connection ───
+// ─── SSE ───
 function connectSSE() {
   const es = new EventSource('/api/events');
   es.onopen = () => {
-    statusDot.className = 'dot connected';
-    statusText.textContent = 'Live';
+    $('status-dot').classList.add('connected');
+    $('status-text').textContent = 'Live';
   };
-  es.onmessage = (e) => {
-    const data = JSON.parse(e.data);
-    if (data.type === 'update' || data.type === 'connected') {
-      fetchBoard();
-    }
-  };
+  es.onmessage = () => fetchBoard();
   es.onerror = () => {
-    statusDot.className = 'dot disconnected';
-    statusText.textContent = 'Reconnecting...';
+    $('status-dot').classList.remove('connected');
+    $('status-text').textContent = 'Reconnecting';
+    setTimeout(() => { if (es.readyState === 2) connectSSE(); }, 3000);
   };
 }
 
-// ─── Fetch & Render Board ───
+// ─── Board Rendering ───
 async function fetchBoard() {
   try {
     const res = await fetch('/api/board');
-    board = await res.json();
-    renderBoard();
-  } catch (e) {
-    console.error('Failed to fetch board:', e);
-  }
+    state.board = await res.json();
+    render(state.board);
+  } catch (e) { console.error('Fetch failed:', e); }
 }
 
-function renderBoard() {
-  titleEl.textContent = board.title || 'IdeaForge';
-  if (board.startedAt) startedAt = new Date(board.startedAt);
+function render(b) {
+  $('session-title').textContent = b.title || '';
+  if (b.startedAt) state.startedAt = new Date(b.startedAt);
 
-  // Count elements
-  const total = board.sections.reduce((sum, s) => sum + (s.elements || []).length, 0);
-  countEl.textContent = `${total} element${total !== 1 ? 's' : ''}`;
+  const total = b.sections.reduce((s, sec) => s + (sec.elements || []).length, 0);
+  $('element-count').textContent = `${total} element${total !== 1 ? 's' : ''}`;
 
   // Empty state
-  if (board.sections.length === 0) {
-    if (!boardEl.contains(emptyState)) boardEl.appendChild(emptyState);
+  if (!b.sections.length) {
     emptyState.style.display = '';
     return;
   }
   emptyState.style.display = 'none';
 
   // Mood overlay
-  if (board.mood?.gradient) {
-    moodOverlay.style.background = `linear-gradient(135deg, ${board.mood.gradient[0]}, ${board.mood.gradient[1]})`;
+  if (b.mood?.gradient) {
+    $('mood-overlay').style.background = `linear-gradient(135deg, ${b.mood.gradient[0]}, ${b.mood.gradient[1]})`;
   }
 
-  // Render sections
+  // Apply URL theme
+  if (b.theme) applyTheme(b.theme);
+
+  // Sections
   const existingIds = new Set();
-  for (const section of board.sections) {
+  for (const section of b.sections) {
     existingIds.add(section.id);
-    let sectionEl = document.querySelector(`[data-section="${section.id}"]`);
-    
-    if (!sectionEl) {
-      sectionEl = document.createElement('div');
-      sectionEl.className = 'board-section';
-      sectionEl.dataset.section = section.id;
-      sectionEl.innerHTML = `
-        <div class="section-label">${escHtml(section.label)}</div>
+    let el = document.querySelector(`[data-section="${section.id}"]`);
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'board-section';
+      el.dataset.section = section.id;
+      el.innerHTML = `
+        <div class="section-header">
+          <span class="section-label"></span>
+          <span class="section-count"></span>
+        </div>
         <div class="section-grid"></div>
       `;
-      boardEl.appendChild(sectionEl);
+      board.appendChild(el);
     }
+    el.querySelector('.section-label').textContent = section.label;
+    el.querySelector('.section-count').textContent = `${(section.elements || []).length}`;
 
-    const grid = sectionEl.querySelector('.section-grid');
-    const label = sectionEl.querySelector('.section-label');
-    label.textContent = section.label;
-
-    // Render elements
-    const existingElIds = new Set();
-    for (const el of (section.elements || [])) {
-      existingElIds.add(el.id);
-      if (grid.querySelector(`[data-el="${el.id}"]`)) continue;
-
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.dataset.el = el.id;
-
-      if (el.type === 'image') {
-        card.innerHTML = `
-          <img src="${escHtml(el.src)}" alt="${escHtml(el.label || '')}" loading="lazy" onerror="this.style.display='none'">
-          ${el.label ? `<div class="card-label">${escHtml(el.label)}</div>` : ''}
-        `;
-      } else if (el.type === 'palette') {
-        card.className = 'card palette-card';
-        const swatches = (el.colors || []).map(c => `<div class="swatch" style="background:${c}" title="${c}"></div>`).join('');
-        card.innerHTML = `<div class="palette-swatches">${swatches}</div><div class="card-label">${escHtml(el.name || '')}</div>`;
-      } else if (el.type === 'keyword') {
-        card.className = 'card keyword-card';
-        card.innerHTML = `<span class="keyword-pill">${escHtml(el.text)}</span>`;
-      } else {
-        card.innerHTML = `<div class="card-label">${escHtml(el.label || el.text || '')}</div>`;
-      }
-
+    const grid = el.querySelector('.section-grid');
+    for (const item of (section.elements || [])) {
+      if (grid.querySelector(`[data-el="${item.id}"]`)) continue;
+      const card = createCard(item);
       grid.appendChild(card);
     }
   }
 
+  // Remove stale sections
+  document.querySelectorAll('[data-section]').forEach(el => {
+    if (!existingIds.has(el.dataset.section)) el.remove();
+  });
+
   // Timeline
-  if (board.timeline?.length) {
-    timelineEl.classList.remove('hidden');
-    timelineItems.innerHTML = board.timeline.map(t => 
-      `<div class="timeline-item"><span class="timeline-dot"></span>${escHtml(t.label)}</div>`
+  if (b.timeline?.length) {
+    $('timeline').classList.remove('hidden');
+    $('timeline-items').innerHTML = b.timeline.map(t =>
+      `<div class="timeline-item"><span class="timeline-dot"></span>${esc(t.label)}</div>`
     ).join('');
   }
 }
 
-function escHtml(s) {
+function createCard(item) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.dataset.el = item.id;
+
+  if (item.type === 'image') {
+    const timeStr = item.timestamp ? new Date(item.timestamp).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }) : '';
+    card.innerHTML = `
+      <img src="${esc(item.src)}" alt="${esc(item.label || '')}" loading="lazy" onerror="this.style.display='none'">
+      <div class="card-body">
+        ${item.label ? `<div class="card-label">${esc(item.label)}</div>` : ''}
+        ${timeStr ? `<div class="card-time">${timeStr}</div>` : ''}
+      </div>
+    `;
+  } else if (item.type === 'palette') {
+    card.classList.add('palette-card');
+    const swatches = (item.colors || []).map(c =>
+      `<div class="palette-swatch" style="background:${c}" data-color="${c}"></div>`
+    ).join('');
+    card.innerHTML = `<div class="card-body">
+      <div class="palette-swatches">${swatches}</div>
+      <div class="palette-name">${esc(item.name || '')}</div>
+    </div>`;
+  } else if (item.type === 'keyword') {
+    card.classList.add('keyword-card');
+    const pills = (item.keywords || [item.text]).map(k =>
+      `<span class="keyword-pill">${esc(k)}</span>`
+    ).join('');
+    card.innerHTML = `<div class="card-body">${pills}</div>`;
+  } else {
+    card.innerHTML = `<div class="card-body"><div class="card-label">${esc(item.label || item.text || '')}</div></div>`;
+  }
+
+  return card;
+}
+
+function esc(s) {
   if (!s) return '';
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ─── Theme Application ───
+function applyTheme(theme) {
+  if (!theme) return;
+  const r = document.documentElement.style;
+
+  // Apply colors with fallbacks
+  const accent = theme.accentColor || theme.colors?.[0] || '#6366f1';
+  const bg = theme.backgroundColor || '#0a0a0f';
+  const text = theme.textColor || '#e4e4ed';
+
+  r.setProperty('--accent', accent);
+  r.setProperty('--bg', bg);
+  r.setProperty('--text', text);
+  r.setProperty('--accent-soft', accent + '22');
+  if (theme.colors?.[1]) r.setProperty('--border', theme.colors[1] + '33');
+
+  // Apply font if available
+  if (theme.fonts?.[0]) {
+    r.setProperty('--font', `'${theme.fonts[0]}', -apple-system, system-ui, sans-serif`);
+  }
+
+  // Mood overlay from palette
+  if (theme.colors?.length >= 2) {
+    $('mood-overlay').style.background = `linear-gradient(135deg, ${theme.colors[0]}, ${theme.colors[1]}, ${theme.colors[2] || theme.colors[0]})`;
+    $('mood-overlay').style.opacity = '0.08';
+  }
+
+  // Show style bar with larger swatches
+  const bar = $('style-bar');
+  bar.classList.remove('hidden');
+  bar.classList.add('themed-visible');
+  board.classList.add('has-style-bar');
+
+  $('style-swatches').innerHTML = (theme.colors || []).map(c =>
+    `<div class="style-swatch" style="background:${c}" title="${c}"></div>`
+  ).join('');
+  $('style-mood').textContent = theme.layoutStyle ? theme.layoutStyle.charAt(0).toUpperCase() + theme.layoutStyle.slice(1) : '';
+  $('style-source').textContent = theme.sourceUrl ? '← ' + new URL(theme.sourceUrl).hostname : '';
+  document.body.classList.add('themed');
+
+  // Flash effect to signal theme change
+  document.body.style.transition = 'background 0.8s ease';
+  
+  // Update empty state to reflect theme
+  const emptyH2 = document.querySelector('.empty-state h2');
+  if (emptyH2) {
+    const host = theme.sourceUrl ? new URL(theme.sourceUrl).hostname : '';
+    emptyH2.textContent = `Styled from ${host}`;
+    emptyH2.style.color = accent;
+    const emptyP = document.querySelector('.empty-state p');
+    if (emptyP) emptyP.textContent = `${theme.layoutStyle ? theme.layoutStyle.charAt(0).toUpperCase() + theme.layoutStyle.slice(1) + ' aesthetic. ' : ''}Click Record or Type to generate matching visuals.`;
+  }
 }
 
 // ─── Microphone Recording ───
 async function startRecording() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
-    audioChunks = [];
-    
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) audioChunks.push(e.data);
+    state.mediaRecorder = new MediaRecorder(stream, {
+      mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm'
+    });
+    state.audioChunks = [];
+
+    state.mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) state.audioChunks.push(e.data);
     };
 
-    mediaRecorder.onstop = async () => {
+    state.mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
-      const blob = new Blob(audioChunks, { type: 'audio/webm' });
-      if (blob.size > 1000) { // Only process if > 1KB (not just silence)
-        await uploadAudio(blob);
-      }
+      const blob = new Blob(state.audioChunks, { type: 'audio/webm' });
+      if (blob.size > 1000) await uploadAudio(blob);
     };
 
-    mediaRecorder.start(1000); // Collect in 1s chunks
-    isRecording = true;
-    $('btn-mic').classList.add('recording');
-    $('btn-mic').querySelector('.mic-label').textContent = 'Stop';
-    recordingIndicator.classList.remove('hidden');
+    state.mediaRecorder.start(1000);
+    state.isRecording = true;
+    $('btn-mic').classList.add('active');
+    $('mic-label').textContent = 'Stop';
+    $('status-dot').classList.add('recording');
+    showToast('recording', 'Recording... click 🎤 to stop');
   } catch (e) {
-    alert('Microphone access denied. Please allow microphone access and try again.');
-    console.error('Mic error:', e);
+    alert('Microphone access denied.');
   }
 }
 
 function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
-  }
-  isRecording = false;
-  $('btn-mic').classList.remove('recording');
-  $('btn-mic').querySelector('.mic-label').textContent = 'Record';
-  recordingIndicator.classList.add('hidden');
+  if (state.mediaRecorder?.state !== 'inactive') state.mediaRecorder?.stop();
+  state.isRecording = false;
+  $('btn-mic').classList.remove('active');
+  $('mic-label').textContent = 'Record';
+  $('status-dot').classList.remove('recording');
+  hideToast();
 }
 
 async function uploadAudio(blob) {
-  isProcessing = true;
-  processingText.textContent = 'Transcribing & generating visuals...';
-  processingIndicator.classList.remove('hidden');
-  
+  state.processing++;
+  showToast('processing', 'Transcribing & generating visuals...');
   try {
-    const res = await fetch('/api/upload-audio', {
-      method: 'POST',
-      headers: { 'Content-Type': 'audio/webm' },
-      body: blob,
-    });
+    const res = await fetch('/api/upload-audio', { method: 'POST', headers: { 'Content-Type': 'audio/webm' }, body: blob });
     const data = await res.json();
-    console.log('Audio processed:', data);
-    if (data.status === 'error') {
-      alert('Processing failed: ' + data.error);
-    }
+    if (data.status === 'error') console.error('Audio error:', data.error);
   } catch (e) {
     console.error('Upload failed:', e);
-    alert('Failed to process audio. Check server connection.');
   } finally {
-    isProcessing = false;
-    processingIndicator.classList.add('hidden');
+    state.processing--;
+    if (!state.processing) hideToast();
   }
 }
 
@@ -210,7 +259,6 @@ function showTextModal() {
   $('text-modal').classList.remove('hidden');
   $('text-input').focus();
 }
-
 function hideTextModal() {
   $('text-modal').classList.add('hidden');
   $('text-input').value = '';
@@ -219,57 +267,106 @@ function hideTextModal() {
 async function sendText() {
   const text = $('text-input').value.trim();
   if (!text) return;
-  
   hideTextModal();
-  isProcessing = true;
-  processingText.textContent = 'Processing concept...';
-  processingIndicator.classList.remove('hidden');
-
+  state.processing++;
+  showToast('processing', 'Processing concept...');
   try {
-    const res = await fetch('/api/send-text', {
+    await fetch('/api/send-text', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),
     });
-    const data = await res.json();
-    console.log('Text processed:', data);
-  } catch (e) {
-    console.error('Send failed:', e);
-    alert('Failed to process text.');
-  } finally {
-    isProcessing = false;
-    processingIndicator.classList.add('hidden');
+  } catch (e) { console.error(e); }
+  finally {
+    state.processing--;
+    if (!state.processing) hideToast();
   }
 }
 
-// ─── Elapsed Timer ───
+// ─── URL Style ───
+function showUrlModal() {
+  $('url-modal').classList.remove('hidden');
+  $('url-input').focus();
+}
+function hideUrlModal() {
+  $('url-modal').classList.add('hidden');
+  $('url-input').value = '';
+}
+
+async function sendUrl() {
+  const url = $('url-input').value.trim();
+  if (!url) return;
+  hideUrlModal();
+  state.processing++;
+  showToast('processing', 'Extracting style from ' + new URL(url).hostname + '...');
+  try {
+    const res = await fetch('/api/add-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    if (data.style) applyTheme(data.style);
+  } catch (e) { console.error(e); }
+  finally {
+    state.processing--;
+    if (!state.processing) hideToast();
+  }
+}
+
+// ─── Toast ───
+function showToast(type, text) {
+  const toast = $('toast');
+  toast.className = `toast ${type}`;
+  $('toast-text').textContent = text;
+}
+function hideToast() {
+  $('toast').classList.add('hidden');
+}
+
+// ─── Timer ───
 setInterval(() => {
-  if (!startedAt) return;
-  const diff = Math.floor((Date.now() - startedAt.getTime()) / 1000);
-  const m = String(Math.floor(diff / 60)).padStart(2, '0');
-  const s = String(diff % 60).padStart(2, '0');
-  elapsedEl.textContent = `${m}:${s}`;
+  if (!state.startedAt) return;
+  const d = Math.floor((Date.now() - state.startedAt.getTime()) / 1000);
+  $('elapsed').textContent = `${String(Math.floor(d / 60)).padStart(2, '0')}:${String(d % 60).padStart(2, '0')}`;
 }, 1000);
 
 // ─── Event Listeners ───
 $('btn-mic').addEventListener('click', () => {
-  if (isProcessing) return;
-  if (isRecording) stopRecording();
-  else startRecording();
+  if (state.isRecording) stopRecording(); else startRecording();
 });
-
 $('btn-text').addEventListener('click', showTextModal);
-$('btn-send-text').addEventListener('click', sendText);
-$('btn-cancel-text').addEventListener('click', hideTextModal);
+$('btn-url').addEventListener('click', showUrlModal);
 $('btn-fullscreen').addEventListener('click', () => document.body.classList.toggle('fullscreen'));
 
-$('text-input').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText(); }
+$('btn-send-text').addEventListener('click', sendText);
+$('btn-close-text').addEventListener('click', hideTextModal);
+$('text-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText(); } });
+
+$('btn-send-url').addEventListener('click', sendUrl);
+$('btn-close-url').addEventListener('click', hideUrlModal);
+$('url-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendUrl(); });
+
+$('btn-clear-style').addEventListener('click', () => {
+  document.documentElement.removeAttribute('style');
+  $('style-bar').classList.add('hidden');
+  board.classList.remove('has-style-bar');
+  document.body.classList.remove('themed');
 });
 
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'f' && !e.target.closest('textarea,input')) document.body.classList.toggle('fullscreen');
-  if (e.key === 'Escape') { hideTextModal(); if (isRecording) stopRecording(); }
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.target.closest('textarea, input')) return;
+  if (e.key === 'r' || e.key === 'R') $('btn-mic').click();
+  if (e.key === 't' || e.key === 'T') showTextModal();
+  if (e.key === 'u' || e.key === 'U') showUrlModal();
+  if (e.key === 'f' || e.key === 'F') document.body.classList.toggle('fullscreen');
+  if (e.key === 'Escape') { hideTextModal(); hideUrlModal(); if (state.isRecording) stopRecording(); }
+});
+
+// Click outside modal to close
+document.querySelectorAll('.modal').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.add('hidden'); });
 });
 
 // ─── Init ───

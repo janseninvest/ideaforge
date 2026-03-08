@@ -5,68 +5,106 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>IdeaForge — Live Moodboard</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎨</text></svg>">
 </head>
 <body>
+  <!-- Header -->
   <header id="header">
     <div class="header-left">
-      <h1 id="title">IdeaForge</h1>
-      <span id="status-dot" class="dot disconnected"></span>
-      <span id="status-text">Connecting...</span>
+      <div class="logo">⚡ IdeaForge</div>
+      <span id="session-title" class="session-title"></span>
     </div>
     <div class="header-center">
+      <span class="status-pill" id="status-pill">
+        <span id="status-dot" class="dot"></span>
+        <span id="status-text">Connecting</span>
+      </span>
+      <span class="meta-sep">•</span>
       <span id="elapsed">00:00</span>
-      <span class="sep">•</span>
+      <span class="meta-sep">•</span>
       <span id="element-count">0 elements</span>
     </div>
     <div class="header-right">
-      <button id="btn-mic" class="control-btn mic-btn" title="Hold to record / Click to toggle">
-        <span class="mic-icon">🎤</span>
-        <span class="mic-label">Record</span>
+      <button id="btn-mic" class="btn-icon" title="Record audio (R)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        <span class="btn-label" id="mic-label">Record</span>
       </button>
-      <button id="btn-text" class="control-btn" title="Type a concept">💬</button>
-      <button id="btn-fullscreen" class="control-btn" title="Fullscreen (F)">⛶</button>
+      <button id="btn-text" class="btn-icon" title="Type concept (T)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </button>
+      <button id="btn-url" class="btn-icon" title="Add URL style (U)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      </button>
+      <button id="btn-fullscreen" class="btn-icon" title="Fullscreen (F)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+      </button>
     </div>
   </header>
 
-  <!-- Text input modal -->
+  <!-- Text Modal -->
   <div id="text-modal" class="modal hidden">
     <div class="modal-content">
-      <h3>Add Concept</h3>
-      <textarea id="text-input" placeholder="Beskriv konseptet ditt her... (norsk eller engelsk)" rows="4"></textarea>
-      <div class="modal-actions">
-        <button id="btn-send-text" class="btn-primary">Send</button>
-        <button id="btn-cancel-text" class="btn-secondary">Cancel</button>
+      <div class="modal-header">
+        <h3>💬 Add Concept</h3>
+        <button class="modal-close" id="btn-close-text">✕</button>
+      </div>
+      <textarea id="text-input" placeholder="Describe your concept... (Norwegian or English)" rows="4"></textarea>
+      <div class="modal-footer">
+        <button id="btn-send-text" class="btn-primary">Generate</button>
       </div>
     </div>
   </div>
 
-  <!-- Recording indicator -->
-  <div id="recording-indicator" class="hidden">
-    <div class="recording-pulse"></div>
-    <span>Recording... Click 🎤 to stop</span>
+  <!-- URL Modal -->
+  <div id="url-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>🔗 Match Website Style</h3>
+        <button class="modal-close" id="btn-close-url">✕</button>
+      </div>
+      <p class="modal-desc">Paste a URL and the moodboard will adopt its color palette, fonts, and visual style.</p>
+      <input id="url-input" type="url" placeholder="https://example.com" />
+      <div class="modal-footer">
+        <button id="btn-send-url" class="btn-primary">Apply Style</button>
+      </div>
+    </div>
   </div>
 
-  <!-- Processing indicator -->
-  <div id="processing-indicator" class="hidden">
-    <div class="spinner"></div>
-    <span id="processing-text">Processing audio...</span>
+  <!-- Recording / Processing Indicator -->
+  <div id="toast" class="toast hidden">
+    <div id="toast-icon" class="toast-icon"></div>
+    <span id="toast-text"></span>
   </div>
 
-  <!-- Mood gradient overlay -->
+  <!-- Mood overlay -->
   <div id="mood-overlay"></div>
 
-  <!-- Main moodboard grid -->
+  <!-- Style info bar (shows when URL style is active) -->
+  <div id="style-bar" class="style-bar hidden">
+    <span class="style-label">Style:</span>
+    <div id="style-swatches" class="style-swatches"></div>
+    <span id="style-mood" class="style-mood"></span>
+    <span id="style-source" class="style-source"></span>
+    <button id="btn-clear-style" class="btn-tiny">Clear</button>
+  </div>
+
+  <!-- Main board -->
   <main id="board">
     <div id="empty-state" class="empty-state">
       <div class="empty-icon">🎨</div>
       <h2>Ready to Create</h2>
-      <p>Click 🎤 to record your ideas, or 💬 to type a concept.<br>The moodboard will build itself from what you say.</p>
+      <p>Click <kbd>R</kbd> to record, <kbd>T</kbd> to type a concept, or <kbd>U</kbd> to match a website's style.</p>
+      <div class="quick-actions">
+        <button class="quick-btn" onclick="document.getElementById('btn-mic').click()">🎤 Start Recording</button>
+        <button class="quick-btn" onclick="document.getElementById('btn-url').click()">🔗 Add URL Style</button>
+        <button class="quick-btn" onclick="document.getElementById('btn-text').click()">💬 Type Concept</button>
+      </div>
     </div>
   </main>
 
-  <!-- Timeline bar -->
-  <footer id="timeline" class="hidden">
-    <div id="timeline-items"></div>
+  <!-- Timeline -->
+  <footer id="timeline" class="timeline hidden">
+    <div id="timeline-items" class="timeline-items"></div>
   </footer>
 
   <script src="app.js"></script>
