@@ -174,8 +174,32 @@ class DirectorAgent {
       this.visualizer.generatePalette(concepts.mood, concepts.color_palette_suggestion || concepts.colors),
     ]);
 
+    // Add palette as a board element if we have color data
+    if (palette?.length > 0 || concepts.color_palette_suggestion?.length > 0) {
+      const colors = concepts.color_palette_suggestion || palette.map(p => p.hex || p);
+      const paletteName = concepts.mood || 'Palette';
+      visuals.push({
+        id: `pal_${Date.now()}`,
+        type: 'palette',
+        concept: paletteName,
+        colors: colors.filter(c => typeof c === 'string' && c.startsWith('#')).slice(0, 6),
+        name: paletteName,
+      });
+    }
+
+    // Add keywords as a board element
+    if (concepts.visual_keywords?.length > 0) {
+      visuals.push({
+        id: `kw_${Date.now()}`,
+        type: 'keyword',
+        concept: 'Keywords',
+        keywords: concepts.visual_keywords,
+        text: concepts.visual_keywords.join(', '),
+      });
+    }
+
     this.session.memory.addVisuals(visuals);
-    this.stats.imagesGenerated += visuals.length;
+    this.stats.imagesGenerated += visuals.filter(v => v.type === 'generated' || v.type === 'reference').length;
 
     // Curate into board
     const boardUpdate = await this.curator.curate(visuals, this.session.memory, this.session.memory.getBoard());
@@ -199,24 +223,51 @@ class DirectorAgent {
     for (const section of (boardUpdate.add_sections || [])) {
       const created = this.presenter.addSection(section.label);
       for (const el of (section.elements || [])) {
-        this.presenter.addElement(created.id, {
-          id: el.id,
-          type: 'image',
-          src: el.filename ? `/assets/${el.filename}` : '',
-          label: el.annotation || el.concept || '',
-        });
+        const rawType = el.type || 'image';
+        const elType = (rawType === 'generated' || rawType === 'reference') ? 'image' : rawType;
+        const element = { id: el.id, type: elType };
+
+        if (elType === 'palette') {
+          element.colors = el.colors || [];
+          element.name = el.name || el.concept || 'Palette';
+        } else if (elType === 'keyword') {
+          element.keywords = el.keywords || [];
+          element.text = el.text || '';
+        } else {
+          const fname = el.filename || (el.path ? require('path').basename(el.path) : '');
+          element.src = fname ? `/assets/${fname}` : '';
+          element.label = el.annotation || el.concept || '';
+          if (!element.src) {
+            logger.warn('director', `Element ${el.id} has no image source — skipping`);
+            continue;
+          }
+        }
+
+        this.presenter.addElement(created.id, element);
       }
     }
 
     for (const update of (boardUpdate.add_to_existing || [])) {
       for (const el of (update.elements || [])) {
         try {
-          this.presenter.addElement(update.sectionId, {
-            id: el.id,
-            type: 'image',
-            src: el.filename ? `/assets/${el.filename}` : '',
-            label: el.annotation || el.concept || '',
-          });
+          const rawType = el.type || 'image';
+          const elType = (rawType === 'generated' || rawType === 'reference') ? 'image' : rawType;
+          const element = { id: el.id, type: elType };
+
+          if (elType === 'palette') {
+            element.colors = el.colors || [];
+            element.name = el.name || el.concept || 'Palette';
+          } else if (elType === 'keyword') {
+            element.keywords = el.keywords || [];
+            element.text = el.text || '';
+          } else {
+            const fname = el.filename || (el.path ? require('path').basename(el.path) : '');
+            element.src = fname ? `/assets/${fname}` : '';
+            element.label = el.annotation || el.concept || '';
+            if (!element.src) continue;
+          }
+
+          this.presenter.addElement(update.sectionId, element);
         } catch (e) {
           logger.warn('director', `Could not add to section ${update.sectionId}: ${e.message}`);
         }

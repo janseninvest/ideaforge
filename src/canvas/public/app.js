@@ -111,7 +111,7 @@ function createCard(item) {
   card.dataset.el = item.id;
   card.draggable = true;
 
-  if (item.type === 'image') {
+  if (item.type === 'image' || item.type === 'generated' || item.type === 'reference') {
     if (!item.src) return null; // Skip broken images
     const timeStr = item.timestamp ? new Date(item.timestamp).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }) : '';
     card.innerHTML = `
@@ -372,6 +372,8 @@ $('btn-mic').addEventListener('click', () => {
 });
 $('btn-text').addEventListener('click', showTextModal);
 $('btn-url').addEventListener('click', showUrlModal);
+$('btn-brief').addEventListener('click', showBriefModal);
+$('btn-sessions').addEventListener('click', showSessionsModal);
 $('btn-export').addEventListener('click', () => window.open('/api/export', '_blank'));
 $('btn-fullscreen').addEventListener('click', () => document.body.classList.toggle('fullscreen'));
 
@@ -382,6 +384,12 @@ $('text-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.s
 $('btn-send-url').addEventListener('click', sendUrl);
 $('btn-close-url').addEventListener('click', hideUrlModal);
 $('url-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendUrl(); });
+
+$('btn-send-brief').addEventListener('click', sendBrief);
+$('btn-close-brief').addEventListener('click', hideBriefModal);
+$('brief-input').addEventListener('keydown', e => { if (e.key === 'Enter' && e.ctrlKey) sendBrief(); });
+
+$('btn-close-sessions').addEventListener('click', hideSessionsModal);
 
 $('btn-clear-style').addEventListener('click', () => {
   document.documentElement.removeAttribute('style');
@@ -396,15 +404,80 @@ document.addEventListener('keydown', e => {
   if (e.key === 'r' || e.key === 'R') $('btn-mic').click();
   if (e.key === 't' || e.key === 'T') showTextModal();
   if (e.key === 'u' || e.key === 'U') showUrlModal();
+  if (e.key === 'b' || e.key === 'B') showBriefModal();
+  if (e.key === 's' || e.key === 'S') showSessionsModal();
   if (e.key === 'e' || e.key === 'E') window.open('/api/export', '_blank');
   if (e.key === 'f' || e.key === 'F') document.body.classList.toggle('fullscreen');
-  if (e.key === 'Escape') { hideTextModal(); hideUrlModal(); if (state.isRecording) stopRecording(); }
+  if (e.key === 'Escape') { hideTextModal(); hideUrlModal(); hideBriefModal(); hideSessionsModal(); if (state.isRecording) stopRecording(); }
 });
 
 // Click outside modal to close
 document.querySelectorAll('.modal').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) m.classList.add('hidden'); });
 });
+
+// ─── Brief Input ───
+function showBriefModal() {
+  $('brief-modal').classList.remove('hidden');
+  $('brief-input').focus();
+}
+function hideBriefModal() {
+  $('brief-modal').classList.add('hidden');
+  $('brief-input').value = '';
+}
+async function sendBrief() {
+  const brief = $('brief-input').value.trim();
+  if (!brief) return;
+  hideBriefModal();
+  state.processing++;
+  showToast('processing', 'Generating from brief...');
+  try {
+    await fetch('/api/brief', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brief }),
+    });
+  } catch (e) { console.error(e); }
+  finally {
+    state.processing--;
+    if (!state.processing) hideToast();
+  }
+}
+
+// ─── Sessions ───
+function showSessionsModal() {
+  $('sessions-modal').classList.remove('hidden');
+  loadSessions();
+}
+function hideSessionsModal() {
+  $('sessions-modal').classList.add('hidden');
+}
+async function loadSessions() {
+  const list = $('sessions-list');
+  try {
+    const res = await fetch('/api/sessions');
+    const sessions = await res.json();
+    if (!sessions.length) {
+      list.innerHTML = '<div class="no-sessions">No past sessions found</div>';
+      return;
+    }
+    list.innerHTML = sessions.map(s => {
+      const date = s.startedAt ? new Date(s.startedAt) : null;
+      const dateStr = date ? date.toLocaleDateString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+      return `<div class="session-item" data-id="${s.id}">
+        <div>
+          <div class="session-item-title">${s.title || s.id}</div>
+          <div class="session-item-meta">
+            <span>${dateStr}</span>
+          </div>
+        </div>
+        <span class="session-item-count">${s.elements} elements</span>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    list.innerHTML = '<div class="no-sessions">Failed to load sessions</div>';
+  }
+}
 
 // ─── Drag & Drop Reorder ───
 let draggedCard = null;

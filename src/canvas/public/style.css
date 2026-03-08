@@ -315,6 +315,21 @@ body.fullscreen main { padding: 20px; max-width: none; }
   .quick-actions { flex-direction: column; }
 }
 
+/* ─── Session List ─── */
+.modal-wide { max-width: 560px; }
+.sessions-list { max-height: 400px; overflow-y: auto; }
+.session-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 14px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); margin-bottom: 8px;
+  cursor: pointer; transition: all 0.15s;
+}
+.session-item:hover { background: var(--accent-soft); border-color: var(--accent); }
+.session-item-title { font-weight: 500; font-size: 0.9rem; }
+.session-item-meta { font-size: 0.75rem; color: var(--text-muted); display: flex; gap: 12px; }
+.session-item-count { font-size: 0.8rem; color: var(--accent); }
+.no-sessions { text-align: center; padding: 24px; color: var(--text-muted); }
+
 /* ─── Theming (applied via JS from URL style) ─── */
 body.themed { transition: background 1s ease; }
 body.themed .card { border-color: color-mix(in srgb, var(--accent) 30%, transparent); }

@@ -35,6 +35,12 @@
       <button id="btn-url" class="btn-icon" title="Add URL style (U)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
       </button>
+      <button id="btn-brief" class="btn-icon" title="Pre-meeting brief (B)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      </button>
+      <button id="btn-sessions" class="btn-icon" title="Past sessions (S)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </button>
       <button id="btn-export" class="btn-icon" title="Export report (E)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       </button>
@@ -69,6 +75,34 @@
       <input id="url-input" type="url" placeholder="https://example.com" />
       <div class="modal-footer">
         <button id="btn-send-url" class="btn-primary">Apply Style</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Brief Modal -->
+  <div id="brief-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>📋 Pre-Meeting Brief</h3>
+        <button class="modal-close" id="btn-close-brief">✕</button>
+      </div>
+      <p class="modal-desc">Paste your meeting brief, project description, or creative direction. The moodboard will pre-generate visual concepts from this context.</p>
+      <textarea id="brief-input" placeholder="Paste your brief here... (Norwegian or English)&#10;&#10;Example: We're rebranding a sustainable fashion label targeting young adults. Think Scandinavian minimalism meets urban streetwear. Earth tones with bold accent colors." rows="6"></textarea>
+      <div class="modal-footer">
+        <button id="btn-send-brief" class="btn-primary">Generate from Brief</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sessions Modal -->
+  <div id="sessions-modal" class="modal hidden">
+    <div class="modal-content modal-wide">
+      <div class="modal-header">
+        <h3>🕐 Past Sessions</h3>
+        <button class="modal-close" id="btn-close-sessions">✕</button>
+      </div>
+      <div id="sessions-list" class="sessions-list">
+        <p class="modal-desc">Loading sessions...</p>
       </div>
     </div>
   </div>

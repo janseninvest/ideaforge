@@ -161,6 +161,31 @@ function createServer(opts = {}) {
       return;
     }
 
+    // Pre-meeting brief
+    if (pathname === '/api/brief' && req.method === 'POST') {
+      const chunks = [];
+      req.on('data', c => chunks.push(c));
+      req.on('end', async () => {
+        try {
+          const body = JSON.parse(Buffer.concat(chunks).toString());
+          const brief = body.brief || '';
+          console.log(`[server] Brief received: "${brief.substring(0, 80)}..."`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          if (onTextReceived) {
+            // Process brief as text — the pipeline handles it the same way
+            const result = await onTextReceived(`Pre-meeting brief: ${brief}`);
+            res.end(JSON.stringify({ status: 'ok', ...result }));
+          } else {
+            res.end(JSON.stringify({ status: 'received' }));
+          }
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'error', error: e.message }));
+        }
+      });
+      return;
+    }
+
     // Status endpoint
     if (pathname === '/api/status') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
