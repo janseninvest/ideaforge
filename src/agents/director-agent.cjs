@@ -117,7 +117,15 @@ class DirectorAgent {
     this._ensureSession();
     logger.info('director', `Processing audio: ${audioFilePath}`);
 
-    const { transcript, concepts } = await this.listener.processAudio(audioFilePath);
+    const result = await this.listener.processAudio(audioFilePath);
+    const { transcript, concepts } = result;
+
+    // Skip filtered (hallucinated) or empty transcriptions
+    if (result.filtered || !transcript || !concepts) {
+      logger.info('director', 'Audio chunk filtered — no real speech detected');
+      return { status: 'filtered', conceptsExtracted: 0, imagesGenerated: 0, boardUpdated: false };
+    }
+
     this.session.memory.addTranscript(transcript, 'audio');
 
     if (concepts.concepts?.length) {

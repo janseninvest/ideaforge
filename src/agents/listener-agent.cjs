@@ -117,7 +117,16 @@ class ListenerAgent {
   }
 
   async processAudio(audioFilePath) {
-    const transcript = await this.transcribe(audioFilePath);
+    const { processAudioFile } = require('../data/audio-provider.cjs');
+    const result = processAudioFile(audioFilePath, { language: this.language });
+
+    if (result.filtered || !result.text || result.text.trim().length < 5) {
+      logger.info?.('listener', `Audio chunk filtered (${result.filtered ? 'hallucination' : 'too short'}): "${result.original || result.text || ''}"`)
+      return { transcript: '', concepts: null, filtered: true };
+    }
+
+    const transcript = result.text;
+    logger.info?.('listener', `Transcribed: "${transcript.substring(0, 80)}..."`);
     const concepts = await this.extractConcepts(transcript);
     return { transcript, concepts };
   }

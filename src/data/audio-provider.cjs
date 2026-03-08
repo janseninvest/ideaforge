@@ -18,6 +18,23 @@ function getApiKey() {
  * @param {string} [opts.language='no'] - Language code
  * @returns {{ text: string, language: string, duration_seconds: number|null }}
  */
+// Known Whisper hallucinations on silence/noise
+const HALLUCINATION_PATTERNS = [
+  /undertekster/i, /ai[\s-]?media/i, /subtitles/i, /copyright/i,
+  /www\./i, /\.com/i, /\.no/i, /amara\.org/i, /transcript/i,
+  /©/i, /all rights reserved/i, /subscribe/i, /thank you for watching/i,
+  /takk for at du ser/i, /teksting/i, /oversatt av/i,
+];
+
+function isHallucination(text) {
+  if (!text || text.trim().length < 3) return true;
+  const t = text.trim();
+  // Very short generic phrases
+  if (t.length < 8) return true;
+  // Known hallucination patterns
+  return HALLUCINATION_PATTERNS.some(p => p.test(t));
+}
+
 function processAudioFile(filePath, opts = {}) {
   const language = opts.language || 'no';
   const apiKey = getApiKey();
@@ -26,6 +43,9 @@ function processAudioFile(filePath, opts = {}) {
     throw new Error(`Audio file not found: ${filePath}`);
   }
 
+  // Add prompt hint to reduce hallucinations — tells Whisper the context
+  const promptHint = opts.promptHint || 'Dette er et møte om kreative ideer og visuell design.';
+
   const cmd = [
     'curl', '-s', '-X', 'POST',
     'https://api.openai.com/v1/audio/transcriptions',
@@ -33,14 +53,28 @@ function processAudioFile(filePath, opts = {}) {
     '-F', `file=@"${filePath}"`,
     '-F', 'model=whisper-1',
     '-F', `language=${language}`,
+    '-F', `prompt=${promptHint}`,
     '-F', 'response_format=verbose_json',
   ].join(' ');
 
   const result = execSync(cmd, { encoding: 'utf-8', timeout: 120000 });
   const parsed = JSON.parse(result);
 
+  const text = parsed.text || '';
+
+  // Filter hallucinations
+  if (isHallucination(text)) {
+    return {
+      text: '',
+      language: parsed.language || language,
+      duration_seconds: parsed.duration || null,
+      filtered: true,
+      original: text,
+    };
+  }
+
   return {
-    text: parsed.text || '',
+    text,
     language: parsed.language || language,
     duration_seconds: parsed.duration || null,
   };
