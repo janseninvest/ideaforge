@@ -142,7 +142,7 @@ class VisualizerAgent {
       },
       body: JSON.stringify({
         model: this.dalleModel,
-        prompt: `Moodboard image: ${prompt}. Professional, high quality, editorial style.`,
+        prompt: `${prompt}. Professional photography, high quality, no text, no words, no labels, no watermarks, no titles, no captions. Clean editorial visual.`,
         n: 1,
         size: this.dalleSize,
         quality: this.dalleQuality,

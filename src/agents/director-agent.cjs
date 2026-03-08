@@ -157,7 +157,11 @@ class DirectorAgent {
     // Build concept objects for the visualizer
     const conceptItems = (concepts.concepts || []).map((c, i) => {
       if (typeof c === 'string') {
-        return { keyword: c, description: c, visualPrompt: concepts.image_prompt_suggestion || c };
+        // Handle both old format (string array) and new format (object array)
+        if (typeof c === 'object' && c.image_prompt) {
+          return { keyword: c.keyword || c.description, description: c.description || c.keyword, visualPrompt: c.image_prompt };
+        }
+        return { keyword: c, description: c, visualPrompt: c };
       }
       return c;
     });

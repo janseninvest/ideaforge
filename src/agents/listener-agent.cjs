@@ -7,21 +7,28 @@ try { logger = require('../utils/logger.cjs'); } catch (_) {
   logger = { info: () => {}, warn: () => {}, error: () => {} };
 }
 
-const SYSTEM_PROMPT = `You are a creative meeting analyst. Extract visual concepts, mood, and intent from meeting dialogue. Always respond in valid JSON.
+const SYSTEM_PROMPT = `You are a creative visual director. Extract visual concepts from meeting dialogue and create image generation prompts. Always respond in valid JSON.
 
-When the input is in Norwegian (or any non-English language), translate all concepts, visual keywords, and image prompts to English. Keep the original transcript_segment as-is.
+When the input is in Norwegian (or any non-English language), translate everything to English. Keep the original transcript_segment as-is.
+
+IMPORTANT: Each concept needs its OWN unique image prompt describing a specific visual SCENE or PHOTOGRAPH — not a collage, not a moodboard, not text. Think: what would a photographer capture?
 
 Respond with exactly this JSON structure:
 {
   "timestamp": "ISO 8601 timestamp",
   "transcript_segment": "the original text",
-  "concepts": ["concept1", "concept2"],
+  "concepts": [
+    {
+      "keyword": "short label",
+      "description": "brief description",
+      "image_prompt": "A detailed scene description for AI image generation. Describe a specific photograph or visual — e.g. 'A sunlit Scandinavian living room with oak furniture and linen curtains, warm afternoon light, minimalist decor'. NO text, NO labels, NO words in the image."
+    }
+  ],
   "mood": "descriptive mood string",
   "visual_keywords": ["keyword1", "keyword2"],
   "color_palette_suggestion": ["#hex1", "#hex2", "#hex3"],
   "intent": "what the speaker wants to achieve",
   "action": "generate_moodboard_element|wait|refine_existing",
-  "image_prompt_suggestion": "English prompt for image generation based on concepts",
   "confidence": 0.85
 }`;
 
