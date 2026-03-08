@@ -1,0 +1,24 @@
+{
+  "server": { "port": 3333 },
+  "listener": {
+    "whisperModel": "whisper-1",
+    "language": "no",
+    "conceptExtractionModel": "gpt-4o-mini",
+    "minConfidence": 0.3
+  },
+  "visualizer": {
+    "dalleModel": "dall-e-3",
+    "dalleSize": "1024x1024",
+    "dalleQuality": "standard",
+    "maxImagesPerCycle": 3,
+    "enableGemini": true
+  },
+  "curator": {
+    "model": "gpt-4o-mini",
+    "maxBoardElements": 20,
+    "autoRemoveWeak": true
+  },
+  "session": {
+    "baseDir": "./sessions"
+  }
+}

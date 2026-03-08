@@ -1,0 +1,15 @@
+{
+  "name": "ideaforge",
+  "version": "0.1.0",
+  "description": "IdeaForge: Real-time meeting intelligence & visual ideation system",
+  "main": "src/index.cjs",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.cjs",
+    "demo": "node scripts/demo-session.cjs",
+    "serve": "node src/canvas/server.cjs",
+    "test": "node --test tests/*.test.cjs"
+  },
+  "engines": { "node": ">=18.0.0" },
+  "license": "MIT"
+}

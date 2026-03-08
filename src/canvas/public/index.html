@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IdeaForge — Live Moodboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header id="header">
+    <div class="header-left">
+      <h1 id="title">IdeaForge</h1>
+      <span id="status-dot" class="dot disconnected"></span>
+      <span id="status-text">Connecting...</span>
+    </div>
+    <div class="header-center">
+      <span id="elapsed">00:00</span>
+      <span class="sep">•</span>
+      <span id="element-count">0 elements</span>
+    </div>
+    <div class="header-right">
+      <button id="btn-mic" class="control-btn mic-btn" title="Hold to record / Click to toggle">
+        <span class="mic-icon">🎤</span>
+        <span class="mic-label">Record</span>
+      </button>
+      <button id="btn-text" class="control-btn" title="Type a concept">💬</button>
+      <button id="btn-fullscreen" class="control-btn" title="Fullscreen (F)">⛶</button>
+    </div>
+  </header>
+
+  <!-- Text input modal -->
+  <div id="text-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Add Concept</h3>
+      <textarea id="text-input" placeholder="Beskriv konseptet ditt her... (norsk eller engelsk)" rows="4"></textarea>
+      <div class="modal-actions">
+        <button id="btn-send-text" class="btn-primary">Send</button>
+        <button id="btn-cancel-text" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recording indicator -->
+  <div id="recording-indicator" class="hidden">
+    <div class="recording-pulse"></div>
+    <span>Recording... Click 🎤 to stop</span>
+  </div>
+
+  <!-- Processing indicator -->
+  <div id="processing-indicator" class="hidden">
+    <div class="spinner"></div>
+    <span id="processing-text">Processing audio...</span>
+  </div>
+
+  <!-- Mood gradient overlay -->
+  <div id="mood-overlay"></div>
+
+  <!-- Main moodboard grid -->
+  <main id="board">
+    <div id="empty-state" class="empty-state">
+      <div class="empty-icon">🎨</div>
+      <h2>Ready to Create</h2>
+      <p>Click 🎤 to record your ideas, or 💬 to type a concept.<br>The moodboard will build itself from what you say.</p>
+    </div>
+  </main>
+
+  <!-- Timeline bar -->
+  <footer id="timeline" class="hidden">
+    <div id="timeline-items"></div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
