@@ -280,9 +280,10 @@ async function uploadAudio(blob) {
   try {
     const res = await fetch('/api/upload-audio', { method: 'POST', headers: { 'Content-Type': 'audio/webm' }, body: blob });
     const data = await res.json();
-    if (data.status === 'error') console.error('Audio error:', data.error);
+    if (data.status === 'error') { console.error('Audio error:', data.error); hideToast(); }
+    if (data.status === 'filtered') { hideToast(); } // silence filtered, no visuals
   } catch (e) {
-    console.error('Upload failed:', e);
+    console.error('Upload failed:', e); hideToast();
   } finally {
     state.processing--;
     if (!state.processing) hideToast();

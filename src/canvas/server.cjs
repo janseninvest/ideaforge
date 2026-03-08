@@ -99,7 +99,8 @@ function createServer(opts = {}) {
         if (onAudioReceived) {
           try {
             const result = await onAudioReceived(audioFile);
-            res.end(JSON.stringify({ status: 'ok', ...result }));
+            const st = result.status || 'ok';
+            res.end(JSON.stringify({ status: st, ...result }));
           } catch (e) {
             console.error('[server] Audio processing error:', e.message);
             res.end(JSON.stringify({ status: 'error', error: e.message }));

@@ -53,7 +53,7 @@ function processAudioFile(filePath, opts = {}) {
     '-F', `file=@"${filePath}"`,
     '-F', 'model=whisper-1',
     '-F', `language=${language}`,
-    '-F', `prompt=${promptHint}`,
+    '-F', `prompt="${promptHint}"`,
     '-F', 'response_format=verbose_json',
   ].join(' ');
 
