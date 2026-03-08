@@ -111,9 +111,10 @@ function createCard(item) {
   card.dataset.el = item.id;
 
   if (item.type === 'image') {
+    if (!item.src) return null; // Skip broken images
     const timeStr = item.timestamp ? new Date(item.timestamp).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }) : '';
     card.innerHTML = `
-      <img src="${esc(item.src)}" alt="${esc(item.label || '')}" loading="lazy" onerror="this.style.display='none'">
+      <img src="${esc(item.src)}" alt="${esc(item.label || '')}" loading="lazy" onerror="this.parentElement.remove()">
       <div class="card-body">
         ${item.label ? `<div class="card-label">${esc(item.label)}</div>` : ''}
         ${timeStr ? `<div class="card-time">${timeStr}</div>` : ''}
@@ -200,38 +201,63 @@ function applyTheme(theme) {
   }
 }
 
-// ─── Microphone Recording ───
+// ─── Microphone Recording (with continuous mode) ───
+let continuousInterval = null;
+let activeStream = null;
+
 async function startRecording() {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    state.mediaRecorder = new MediaRecorder(stream, {
-      mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm'
-    });
-    state.audioChunks = [];
+    activeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    beginChunk(activeStream);
 
-    state.mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) state.audioChunks.push(e.data);
-    };
-
-    state.mediaRecorder.onstop = async () => {
-      stream.getTracks().forEach(t => t.stop());
-      const blob = new Blob(state.audioChunks, { type: 'audio/webm' });
-      if (blob.size > 1000) await uploadAudio(blob);
-    };
-
-    state.mediaRecorder.start(1000);
     state.isRecording = true;
+    state.isContinuous = true;
     $('btn-mic').classList.add('active');
     $('mic-label').textContent = 'Stop';
     $('status-dot').classList.add('recording');
-    showToast('recording', 'Recording... click 🎤 to stop');
+    showToast('recording', 'Listening continuously... click 🎤 to stop');
+
+    // Auto-chunk every 20 seconds for continuous processing
+    continuousInterval = setInterval(() => {
+      if (state.mediaRecorder?.state === 'recording') {
+        state.mediaRecorder.stop(); // triggers onstop → upload → beginChunk
+      }
+    }, 20000);
   } catch (e) {
-    alert('Microphone access denied.');
+    alert('Microphone access denied. Please allow mic access and retry.');
   }
 }
 
+function beginChunk(stream) {
+  const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+  state.mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
+  state.audioChunks = [];
+
+  state.mediaRecorder.ondataavailable = (e) => {
+    if (e.data.size > 0) state.audioChunks.push(e.data);
+  };
+
+  state.mediaRecorder.onstop = async () => {
+    const blob = new Blob(state.audioChunks, { type: 'audio/webm' });
+    if (blob.size > 2000) uploadAudio(blob); // fire-and-forget, don't await
+
+    // Start next chunk if still in continuous mode
+    if (state.isContinuous && activeStream?.active) {
+      beginChunk(activeStream);
+    }
+  };
+
+  state.mediaRecorder.start(1000);
+}
+
 function stopRecording() {
+  state.isContinuous = false;
+  clearInterval(continuousInterval);
+  continuousInterval = null;
+
   if (state.mediaRecorder?.state !== 'inactive') state.mediaRecorder?.stop();
+  if (activeStream) { activeStream.getTracks().forEach(t => t.stop()); activeStream = null; }
+
   state.isRecording = false;
   $('btn-mic').classList.remove('active');
   $('mic-label').textContent = 'Record';
@@ -337,6 +363,7 @@ $('btn-mic').addEventListener('click', () => {
 });
 $('btn-text').addEventListener('click', showTextModal);
 $('btn-url').addEventListener('click', showUrlModal);
+$('btn-export').addEventListener('click', () => window.open('/api/export', '_blank'));
 $('btn-fullscreen').addEventListener('click', () => document.body.classList.toggle('fullscreen'));
 
 $('btn-send-text').addEventListener('click', sendText);
@@ -360,6 +387,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'r' || e.key === 'R') $('btn-mic').click();
   if (e.key === 't' || e.key === 'T') showTextModal();
   if (e.key === 'u' || e.key === 'U') showUrlModal();
+  if (e.key === 'e' || e.key === 'E') window.open('/api/export', '_blank');
   if (e.key === 'f' || e.key === 'F') document.body.classList.toggle('fullscreen');
   if (e.key === 'Escape') { hideTextModal(); hideUrlModal(); if (state.isRecording) stopRecording(); }
 });

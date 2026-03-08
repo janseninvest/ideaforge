@@ -168,6 +168,50 @@ function createServer(opts = {}) {
       return;
     }
 
+    // Export as PDF-ready HTML report
+    if (pathname === '/api/export') {
+      try {
+        const { PdfExporter } = require('../tools/pdf-exporter.cjs');
+        const exporter = new PdfExporter(sessionDir);
+        const html = exporter.generate();
+        res.writeHead(200, {
+          'Content-Type': 'text/html',
+          'Content-Disposition': 'attachment; filename="ideaforge-report.html"',
+        });
+        res.end(html);
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+      return;
+    }
+
+    // List all sessions
+    if (pathname === '/api/sessions') {
+      try {
+        const baseDir = path.resolve(sessionDir, '..');
+        const dirs = fs.readdirSync(baseDir).filter(d => d.startsWith('session_')).sort().reverse();
+        const sessions = dirs.map(d => {
+          try {
+            const meta = JSON.parse(fs.readFileSync(path.join(baseDir, d, 'meta.json'), 'utf-8'));
+            const boardPath = path.join(baseDir, d, 'board.json');
+            let elements = 0;
+            if (fs.existsSync(boardPath)) {
+              const board = JSON.parse(fs.readFileSync(boardPath, 'utf-8'));
+              elements = (board.sections || []).reduce((s, sec) => s + (sec.elements || []).length, 0);
+            }
+            return { id: d, title: meta.title, startedAt: meta.startedAt, elements };
+          } catch (e) { return { id: d, title: d, elements: 0 }; }
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(sessions));
+      } catch (e) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end('[]');
+      }
+      return;
+    }
+
     // Assets
     if (pathname.startsWith('/assets/')) {
       const assetPath = path.join(assetsDir, pathname.slice(8));
